@@ -14,3 +14,13 @@ langchain_huggingface
 langchain-groq
 langgraph
 langgraph-cli[inmem]
+youtube_transcript_api
+langchain-text-splitters
+langchain_chroma
+langchain_huggingface
+langchain_openai
+langchain_community
+langchain_groq
+openai_embeddings
+ollama_embeddings
+huggingface_embeddings
