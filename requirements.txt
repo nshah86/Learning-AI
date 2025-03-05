@@ -1,3 +1,4 @@
+pillow
 langchain
 python-dotenv
 langchain-openai
