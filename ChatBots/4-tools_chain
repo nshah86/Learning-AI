@@ -1,0 +1,68 @@
+import os
+from dotenv import load_dotenv
+from langchain_community.tools import ArxivQueryRun, WikipediaQueryRun
+from langchain_community.utilities import WikipediaAPIWrapper, ArxivAPIWrapper
+from langchain_community.document_loaders import WebBaseLoader
+from langchain_community.vectorstores import FAISS
+from langchain_openai import OpenAIEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.tools.retriever import create_retriever_tool
+from langchain_groq import ChatGroq
+from langchain import hub
+from langchain.agents import AgentExecutor, create_openai_tools_agent
+
+# Load environment variables
+load_dotenv()
+
+# Set API keys from environment variables
+os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
+os.environ["GROQ_API_KEY"] = os.getenv("GROQ_API_KEY")
+
+# Initialize API wrappers for Wikipedia and Arxiv
+api_wrapper_wiki = WikipediaAPIWrapper(top_k_results=1, doc_content_chars_max=250)
+wiki = WikipediaQueryRun(api_wrapper=api_wrapper_wiki)
+print("Initialized Wikipedia tool:", wiki)
+
+api_wrapper_arxiv = ArxivAPIWrapper(top_k_results=1, doc_content_chars_max=250)
+arxiv = ArxivQueryRun(api_wrapper=api_wrapper_arxiv)
+print("Initialized Arxiv tool:", arxiv)
+
+# Load documents from a specified URL and create a retriever
+loader = WebBaseLoader("https://docs.smith.langchain.com/")
+docs = loader.load()
+documents = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200).split_documents(docs)
+
+# Create a vector database from the document chunks using OpenAI embeddings
+vectordb = FAISS.from_documents(documents, OpenAIEmbeddings())
+retriever = vectordb.as_retriever()
+print("Initialized retriever tool:", retriever)
+
+# Create a retriever tool for searching information about Langsmith
+retriever_tool = create_retriever_tool(retriever, "langsmith-search", "Search any information about Langsmith")
+print("Initialized Langsmith search tool:", retriever_tool)
+
+# Combine all tools into a list
+tools = [wiki, arxiv, retriever_tool]
+
+# Pull a prompt template from a hub
+prompt = hub.pull("hwchase17/openai-functions-agent")
+print("Loaded prompt template:", prompt.messages)
+
+# Initialize a language model using ChatGroq
+llm = ChatGroq(model_name="Llama3-8b-8192", api_key=os.getenv("GROQ_API_KEY"))
+print("Initialized ChatGroq model:", llm)
+
+# Create an agent and executor for handling queries
+agent = create_openai_tools_agent(llm, tools, prompt)
+agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+print("Initialized agent executor:", agent_executor)
+
+# Example invocations to demonstrate the agent's capabilities
+response = agent_executor.invoke({"input": "What is the capital of France?"})
+print("Response for 'What is the capital of France?':", response)
+
+response = agent_executor.invoke({"input": "Tell me about Langsmith"})
+print("Response for 'Tell me about Langsmith':", response)
+
+# Output the final result of the agent's execution
+agent_executor.output
